@@ -17,6 +17,10 @@ fixed were often broken in a way that only showed up on somebody else's machine.
   re-encoding the clip. Clear it to use the built-in Clips Kitty card again.
   Settings API: `custom_outro`, `POST /outro/source`.
 
+- **Fork-safe updates.** `config/fork.json` disables electron-updater against
+  ColinGPT9’s release feed; `electron-builder` publish is commented out for
+  this fork. See [FORK.md](FORK.md).
+
 - **Optional Clip updates.** App-wide Approve/Deny cards, private Discord
   updates and an Away from desk approval gate, with local-model wording and
   plain-text fallback. Includes a configurable attorney joke popup. Off by default.

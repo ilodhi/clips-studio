@@ -17,6 +17,7 @@ import { app, autoUpdater as nativeUpdater, ipcMain, net, shell, type BrowserWin
 import { readFileSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { autoUpdater, type UpdateInfo } from 'electron-updater'
+import { forkUpdatesDisabled, loadForkConfig } from './fork'
 import { isMicrosoftStore } from './distribution'
 import { STORE_CATALOG, STORE_PAGE, isNewer, storeVersionOf } from './storeVersion'
 
@@ -232,6 +233,28 @@ export function setupUpdater(win: BrowserWindow): void {
     setTimeout(() => {
       storeCheck().catch(() => undefined)
     }, 8000)
+    return
+  }
+
+  if (forkUpdatesDisabled()) {
+    const fork = loadForkConfig()
+    const tell = (): void =>
+      send('update:state', {
+        state: 'fork',
+        current: app.getVersion(),
+        notes: fork?.label
+      })
+
+    ipcMain.handle('update:openStore', async () => ({ ok: false }))
+    ipcMain.handle('update:check', async () => {
+      tell()
+      return { ok: false, reason: 'fork' }
+    })
+    ipcMain.handle('update:download', async () => ({ ok: false }))
+    ipcMain.handle('update:install', () => ({ ok: false }))
+    ipcMain.handle('update:skip', () => ({ ok: false }))
+    ipcMain.handle('update:prefs', () => loadPrefs())
+    setTimeout(tell, 500)
     return
   }
 

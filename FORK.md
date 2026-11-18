@@ -43,13 +43,49 @@ Clips made **before** you set the bumper are unchanged until you re-render them.
 
 ### Staying current with upstream
 
+**Regularly** (monthly or before a big clip batch):
+
 ```bash
 git fetch upstream
 git merge upstream/main
 ```
 
-Conflicts often touch `video/outro.py`, `ui/src/renderer/src/pages/Settings.tsx`, and
-`server/api.py`. Keep custom-outro commits small to make merges easier.
+On Windows you can run:
+
+```powershell
+.\scripts\merge-upstream.ps1
+```
+
+Conflicts often touch `video/outro.py`, `ui/src/renderer/src/pages/Settings.tsx`,
+`server/api.py`, and `ui/electron-builder.yml`. Keep fork-only commits small.
+
+After merging upstream, run from source and clip a short test video before you rely on it.
+
+## Phase 2 — updates and installer safety
+
+This fork **does not** check ColinGPT9’s Hugging Face update feed. That prevents a
+packaged install from silently replacing your custom engine with upstream Clips Kitty.
+
+| File | Purpose |
+|------|---------|
+| `config/fork.json` | `updates: false` — read at runtime from `resources/fork.json` |
+| `ui/electron-builder.yml` | `publish` block commented out; `fork.json` bundled in `extraResources` |
+| Settings → Updates | Shows fork message instead of “Check for updates” |
+
+### When you ship your own installer later
+
+1. Create a Hugging Face repo for release payloads (see upstream `docs/RELEASING.md`).
+2. Set `config/fork.json` to `"updates": true` and add your feed URL as `releaseFeed`.
+3. Uncomment `publish` in `ui/electron-builder.yml` and point `url` at **your** HF repo.
+4. Rebuild with `python scripts/build_installer.py` (CUDA torch, long build).
+
+Until then, install from **source** (`npm run dev`) or distribute a zip you built yourself,
+and update by `git pull` + rebuild.
+
+### Do not install upstream’s Web Setup on top of this fork
+
+The official Clips Kitty installer expects ColinGPT9’s update channel. Use **this repo’s**
+build or source only.
 
 ## Licence
 
