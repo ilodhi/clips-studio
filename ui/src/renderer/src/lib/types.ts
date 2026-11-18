@@ -788,7 +788,8 @@ export interface Settings {
   privacy: string
   content_language: string // 'auto' or ISO code (es / pt / hi / id ...)
   translation_model: string // local model used for translation ('' = the main one)
-  outro: boolean // append the Clips Kitty end card to each clip (clips.outro)
+  outro: boolean // append an end card to each clip (clips.outro)
+  custom_outro: string // basename in data/outro/uploads/; empty = built-in card
   min_score: number // clips.min_score: clips scoring below it are dropped (0-100)
   youtube_cookies: '' | 'firefox' | 'file' // 'file': the cookies.txt kept in the data folder (#136)
 }

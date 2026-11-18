@@ -1,3 +1,6 @@
+> **Fork note ([ilodhi/clips-studio](https://github.com/ilodhi/clips-studio)):** this copy adds a
+> [custom MP4 clip end card](FORK.md). Run from source and see [FORK.md](FORK.md) before installing.
+
 <div align="center">
 
 **English** · [简体中文](docs/readme/README_zh.md) · [日本語](docs/readme/README_ja.md) · [한국어](docs/readme/README_ko.md) · [Türkçe](docs/readme/README_tr.md) · [Русский](docs/readme/README_ru.md) · [Tiếng Việt](docs/readme/README_vi.md) · [ไทย](docs/readme/README_th.md) · [Deutsch](docs/readme/README_de.md) · [Español](docs/readme/README_es.md) · [Français](docs/readme/README_fr.md) · [Português (Brasil)](docs/readme/README_pt-BR.md) · [العربية](docs/readme/README_ar.md) · [Bahasa Indonesia](docs/readme/README_id.md) · [Italiano](docs/readme/README_it.md) · [हिन्दी](docs/readme/README_hi.md) · [বাংলা](docs/readme/README_bn.md) · [Filipino](docs/readme/README_tl.md) · [اردو](docs/readme/README_ur.md)

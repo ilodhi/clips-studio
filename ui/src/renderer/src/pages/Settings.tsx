@@ -738,13 +738,57 @@ function YouTubeCookiesSetting(): JSX.Element {
 
 function BrandingCard(): JSX.Element {
   const [outro, setOutro] = useState(true)
+  const [customOutro, setCustomOutro] = useState('')
+  const [outroBusy, setOutroBusy] = useState(false)
+  const [outroError, setOutroError] = useState('')
 
-  useEffect(() => {
+  const load = (): void => {
     api
       .settings()
-      .then((s) => setOutro(s.outro !== false))
+      .then((s) => {
+        setOutro(s.outro !== false)
+        setCustomOutro(s.custom_outro ?? '')
+      })
       .catch(() => {})
-  }, [])
+  }
+
+  useEffect(load, [])
+
+  const endCardLabel = customOutro
+    ? t('Append your custom end card to every clip')
+    : t('Add the Clips Kitty end card to every clip')
+
+  const pickCustomOutro = async (): Promise<void> => {
+    setOutroError('')
+    const path = await window.studio.pickVideoFile()
+    if (!path) return
+    setOutroBusy(true)
+    try {
+      const { asset } = await api.uploadOutroSource(path)
+      setCustomOutro(asset)
+      if (!outro) {
+        setOutro(true)
+        await api.patchSettings({ outro: true })
+      }
+    } catch (e) {
+      setOutroError(e instanceof Error ? e.message : t('Could not set the end card'))
+    } finally {
+      setOutroBusy(false)
+    }
+  }
+
+  const clearCustomOutro = async (): Promise<void> => {
+    setOutroError('')
+    setOutroBusy(true)
+    try {
+      await api.patchSettings({ custom_outro: '' })
+      setCustomOutro('')
+    } catch (e) {
+      setOutroError(e instanceof Error ? e.message : t('Could not clear the end card'))
+    } finally {
+      setOutroBusy(false)
+    }
+  }
 
   return (
     <div className="card space-y-3" aria-label={t("Branding")}>
@@ -753,6 +797,7 @@ function BrandingCard(): JSX.Element {
         <input
           type="checkbox"
           checked={outro}
+          disabled={outroBusy}
           onChange={async (e) => {
             const next = e.target.checked
             setOutro(next)
@@ -763,8 +808,34 @@ function BrandingCard(): JSX.Element {
             }
           }}
         />
-        <span className="text-sm">{t('Add the Clips Kitty end card to every clip')}</span>
+        <span className="text-sm">{endCardLabel}</span>
       </label>
+      <div className="space-y-2 border-t border-raised/60 pt-3">
+        <p className="text-sm font-medium">{t('Custom end card (MP4)')}</p>
+        <p className="text-xs text-muted">
+          {t(
+            'Your animated bumper is scaled to each clip and appended without re-encoding the clip. Use 9:16 for vertical Shorts.'
+          )}
+        </p>
+        {customOutro ? (
+          <p className="text-xs text-ink truncate" title={customOutro}>
+            {t('Active')}: {customOutro}
+          </p>
+        ) : (
+          <p className="text-xs text-muted">{t('Using the built-in Clips Kitty card when the end card is on.')}</p>
+        )}
+        <div className="flex flex-wrap gap-2">
+          <button type="button" className="btn" disabled={outroBusy} onClick={() => void pickCustomOutro()}>
+            {customOutro ? t('Replace end card') : t('Choose end card video')}
+          </button>
+          {customOutro && (
+            <button type="button" className="btn" disabled={outroBusy} onClick={() => void clearCustomOutro()}>
+              {t('Use Clips Kitty card')}
+            </button>
+          )}
+        </div>
+        {outroError && <p className="text-xs text-error">{outroError}</p>}
+      </div>
     </div>
   )
 }

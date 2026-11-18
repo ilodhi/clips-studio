@@ -46,7 +46,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image, ImageChops, ImageDraw, ImageFont
 
-from core.paths import discard, resolve_data_dir
+from core.paths import discard, resolve_data_dir, safe_name
 from video import mascot_art as art
 from video.encoding import concat, concat_entry, final_movflags
 
@@ -961,6 +961,80 @@ def _cache_dir(config: dict) -> Path:
     return d
 
 
+def _custom_uploads_dir(config: dict) -> Path:
+    d = resolve_data_dir(config) / "outro" / "uploads"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def _custom_source(config: dict) -> Path | None:
+    """The user's uploaded bumper, if configured and present on disk."""
+    name = (config.get("clips", {}).get("custom_outro") or "").strip()
+    if not name or safe_name(name) is None:
+        return None
+    src = _custom_uploads_dir(config) / name
+    if not src.is_file() or src.stat().st_size == 0:
+        return None
+    return src
+
+
+def _custom_cache_name(fmt: dict, source: Path) -> str:
+    st = source.stat()
+    return f"custom_{st.st_size}_{int(st.st_mtime)}_{_key(fmt)}"
+
+
+def _source_has_audio(path: Path) -> bool:
+    r = subprocess.run(
+        [_ffprobe(), "-v", "error", "-select_streams", "a:0",
+         "-show_entries", "stream=codec_type", "-of", "csv=p=0", str(path)],
+        capture_output=True, text=True)
+    return r.returncode == 0 and r.stdout.strip() == "audio"
+
+
+def _render_custom(source: Path, fmt: dict, dst: Path) -> None:
+    """Fit the user's MP4 to the clip's exact concat parameters."""
+    tmp_dir = dst.parent / f".build_{os.getpid()}_{threading.get_ident()}"
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        w, h = fmt["w"], fmt["h"]
+        rate = str(fmt.get("rate") or fmt["fps"])
+        vf = (f"scale={w}:{h}:force_original_aspect_ratio=decrease,"
+              f"pad={w}:{h}:(ow-iw)/2:(oh-ih)/2,setsar=1")
+        video = [
+            "-vf", vf, "-r", rate,
+            "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-bf", "0",
+            "-pix_fmt", fmt["pix_fmt"],
+            "-video_track_timescale", str(fmt.get("timescale") or 30000),
+        ]
+        audio = [
+            "-c:a", "aac", "-b:a", "128k",
+            "-ar", str(fmt["sample_rate"]), "-ac", str(fmt["channels"]),
+        ]
+        tmp_mp4 = tmp_dir / "outro.mp4"
+        attempts: list[list[str]] = []
+        if _source_has_audio(source):
+            attempts.append([*_ffmpeg(), "-y", "-v", "error", "-i", str(source), *video, *audio,
+                             "-movflags", "+faststart", str(tmp_mp4)])
+        attempts.append([
+            *_ffmpeg(), "-y", "-v", "error", "-i", str(source),
+            "-f", "lavfi", "-i",
+            f"anullsrc=channel_layout={'stereo' if fmt['channels'] >= 2 else 'mono'}"
+            f":sample_rate={fmt['sample_rate']}",
+            *video, "-map", "0:v:0", "-map", "1:a:0", "-shortest", *audio,
+            "-movflags", "+faststart", str(tmp_mp4),
+        ])
+        err = ""
+        for cmd in attempts:
+            r = subprocess.run(cmd, capture_output=True, text=True)
+            if r.returncode == 0 and tmp_mp4.exists() and tmp_mp4.stat().st_size > 0:
+                tmp_mp4.replace(dst)
+                return
+            err = r.stderr.strip()[-400:]
+        raise RuntimeError(f"custom outro encode failed: {err}")
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
 def _bundled(name: str) -> Path | None:
     """The prebuilt card that ships with the app, if one matches this format.
 
@@ -995,7 +1069,27 @@ def ensure_outro(fmt: dict, config: dict) -> Path:
     Keyed on width, height, fps, pixel format and audio parameters, because
     those are precisely the things concat's `-c copy` requires to agree. Built
     once per format on a machine -- not once per video, and not once per clip.
+
+    When ``clips.custom_outro`` names a file in ``data/outro/uploads/``, that
+    bumper is transcoded once per format and cached instead of the built-in
+    Clips Kitty card.
     """
+    configured = (config.get("clips", {}).get("custom_outro") or "").strip()
+
+    if configured and safe_name(configured):
+        custom = _custom_source(config)
+        if not custom:
+            raise RuntimeError(f"custom outro {configured!r} is not in uploads")
+        cache_name = _custom_cache_name(fmt, custom)
+        cached = _cache_dir(config) / cache_name
+        if cached.exists() and cached.stat().st_size > 0:
+            return cached
+        with _build_lock:
+            if cached.exists() and cached.stat().st_size > 0:
+                return cached
+            _render_custom(custom, fmt, cached)
+        return cached
+
     name = _key(fmt)
     cached = _cache_dir(config) / name
     if cached.exists() and cached.stat().st_size > 0:

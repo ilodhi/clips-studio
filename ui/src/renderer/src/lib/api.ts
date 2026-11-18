@@ -607,6 +607,12 @@ export const api = {
     }),
   brandingAssetUrl: (name: string) => `${API_BASE}/branding/asset/${name}`,
 
+  uploadOutroSource: (path: string) =>
+    request<{ asset: string }>('/outro/source', {
+      method: 'POST',
+      body: JSON.stringify({ path })
+    }),
+
   settings: () => request<Settings>('/settings'),
   // youtube_cookies_text: a cookies.txt's contents, kept by the engine in the data folder (#136)
   patchSettings: (patch: Partial<Settings> & { youtube_cookies_text?: string }) =>

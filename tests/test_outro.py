@@ -427,6 +427,44 @@ def test_second_clip_reuses_the_cache(clip_factory, cfg, monkeypatch):
 
 
 @needs_ffmpeg
+def test_custom_outro_appends_without_re_encoding(clip_factory, cfg, monkeypatch):
+    """clips.custom_outro selects the user's bumper instead of the mascot card."""
+    uploads = Path(cfg["paths"]["data_dir"]) / "outro" / "uploads"
+    uploads.mkdir(parents=True, exist_ok=True)
+    src = uploads / "mine.mp4"
+    subprocess.run([
+        binaries.ffmpeg(), "-y", "-v", "error",
+        "-f", "lavfi", "-i", "color=c=blue:s=720x1280:r=30:d=2",
+        "-f", "lavfi", "-i", "sine=f=440:r=48000:d=2",
+        "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
+        "-c:a", "aac", "-b:a", "128k", "-ac", "2", "-movflags", "+faststart",
+        str(src),
+    ], check=True, capture_output=True)
+    cfg.setdefault("clips", {})["custom_outro"] = "mine.mp4"
+    monkeypatch.setattr(outro, "_render",
+                        lambda *a, **k: pytest.fail("built-in card rendered"))
+
+    clip = clip_factory(secs=2)
+    before = _packets(clip)
+    original = _video_hash(clip, before)
+
+    assert outro.append(clip, cfg) is True
+    assert _packets(clip) > before
+    assert _video_hash(clip, before) == original
+
+
+@needs_ffmpeg
+def test_missing_custom_outro_leaves_the_clip_alone(clip_factory, cfg, monkeypatch):
+    cfg.setdefault("clips", {})["custom_outro"] = "not-uploaded.mp4"
+    monkeypatch.setattr(outro, "_render",
+                        lambda *a, **k: pytest.fail("built-in card rendered"))
+    clip = clip_factory()
+    before = _packets(clip)
+    assert outro.append(clip, cfg) is False
+    assert _packets(clip) == before
+
+
+@needs_ffmpeg
 def test_disabled_leaves_the_clip_exactly_as_it_was(clip_factory, cfg):
     clip = clip_factory()
     before, digest = _packets(clip), _video_hash(clip, _packets(clip))

@@ -12,6 +12,11 @@ fixed were often broken in a way that only showed up on somebody else's machine.
 
 ### Added
 
+- **Custom clip end card (MP4).** In Settings → Branding, choose your own
+  animated bumper. It is scaled to each clip’s format and appended without
+  re-encoding the clip. Clear it to use the built-in Clips Kitty card again.
+  Settings API: `custom_outro`, `POST /outro/source`.
+
 - **Optional Clip updates.** App-wide Approve/Deny cards, private Discord
   updates and an Away from desk approval gate, with local-model wording and
   plain-text fallback. Includes a configurable attorney joke popup. Off by default.

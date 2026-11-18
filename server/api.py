@@ -219,6 +219,10 @@ class BrandingAssetIn(BaseModel):
     path: str   # image file on this computer to import as a branding asset
 
 
+class OutroSourceIn(BaseModel):
+    path: str   # video file on this computer to use as the clip end card
+
+
 class CreatorBrandingIn(BaseModel):
     branding_id: int | None = None   # default branding profile, or null to clear
 
@@ -338,6 +342,7 @@ class SettingsPatch(BaseModel):
     content_language: str | None = None  # auto / ISO code (es, pt, hi, id...)
     translation_model: str | None = None  # local model used for translation
     outro: bool | None = None  # append the Clips Kitty end card (clips.outro)
+    custom_outro: str | None = None  # basename in data/outro/uploads/; "" clears
     min_score: int | None = None  # clips.min_score: the quality bar, 0-100
     # "" none or "firefox": asked with only when YouTube takes the PC for a
     # bot (sources/ytdlp_common.py, #136). A cookies.txt comes as its text in
@@ -2566,6 +2571,38 @@ def create_app(config: dict, settings_path: Path) -> FastAPI:
             dest.write_bytes(data)
         return {"asset": name}
 
+    @app.post("/outro/source")
+    def upload_outro_source(body: OutroSourceIn):
+        """Import a bumper video into data/outro/uploads and select it as the
+        end card for new clips."""
+        import hashlib
+
+        picked = picked_file(body.path, _VIDEO_SUFFIXES)
+        if picked is None:
+            raise HTTPException(400, "choose an MP4, MOV, MKV or similar video file")
+        src, suffix, _st = picked
+        data = src.read_bytes()
+        if len(data) > 100 * 1024 * 1024:
+            raise HTTPException(400, "video too large (max 100 MB)")
+        name = hashlib.sha256(data).hexdigest()[:16] + suffix
+        uploads = data_dir / "outro" / "uploads"
+        uploads.mkdir(parents=True, exist_ok=True)
+        dest = uploads / name
+        if not dest.exists():
+            dest.write_bytes(data)
+        quoted = f'"{name}"'
+        text = settings_path.read_text(encoding="utf-8")
+        text, n = re.subn(r"(?m)^(\s*custom_outro:\s*)\S*",
+                          rf"\g<1>{quoted}", text, count=1)
+        if n == 0:
+            text, n = re.subn(r"(?m)^(clips:[^\S\n]*$)",
+                              rf"\g<1>\n  custom_outro: {quoted}", text, count=1)
+        if n == 0:
+            raise HTTPException(500, "no 'clips:' section in settings.yaml")
+        settings_path.write_text(text, encoding="utf-8")
+        config.setdefault("clips", {})["custom_outro"] = name
+        return {"asset": name}
+
     @app.get("/branding/asset/{name}")
     def get_branding_asset(name: str):
         # Found by listing the folder rather than by joining the name onto
@@ -3268,6 +3305,7 @@ def create_app(config: dict, settings_path: Path) -> FastAPI:
             # Absent counts as ON, matching how the pipeline reads it, so the
             # toggle shows the state an upgrading user actually gets.
             "outro": config.get("clips", {}).get("outro", True),
+            "custom_outro": config.get("clips", {}).get("custom_outro", "") or "",
             "min_score": int(config.get("clips", {}).get("min_score", 55)),
             "youtube_cookies": ytdlp_common.cookies(),  # as the engine uses it: "", "firefox" or "file"
         }
@@ -3303,6 +3341,19 @@ def create_app(config: dict, settings_path: Path) -> FastAPI:
             if n == 0:
                 raise HTTPException(400, "no 'clips:' section in settings.yaml")
             config.setdefault("clips", {})["outro"] = body.outro
+        if body.custom_outro is not None:
+            name = body.custom_outro.strip()
+            if name and safe_name(name) is None:
+                raise HTTPException(400, "invalid custom outro name")
+            quoted = f'"{name}"' if name else '""'
+            text, n = re.subn(r"(?m)^(\s*custom_outro:\s*)\S*",
+                              rf"\g<1>{quoted}", text, count=1)
+            if n == 0:
+                text, n = re.subn(r"(?m)^(clips:[^\S\n]*$)",
+                                  rf"\g<1>\n  custom_outro: {quoted}", text, count=1)
+            if n == 0:
+                raise HTTPException(400, "no 'clips:' section in settings.yaml")
+            config.setdefault("clips", {})["custom_outro"] = name
         if body.min_score is not None:
             # Nested under `clips:` like outro. The "no clips" message sends
             # people to change it in Settings (#111), where it wasn't. The

@@ -1,3 +1,6 @@
+# Cursor IDE local state
+.cursor/
+
 # Runtime artifacts (downloads, transcripts, rendered clips)
 data/
 
