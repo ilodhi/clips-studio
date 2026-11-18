@@ -20,6 +20,8 @@ fixed were often broken in a way that only showed up on somebody else's machine.
 - **Fork-safe updates.** `config/fork.json` disables electron-updater against
   ColinGPT9’s release feed; `electron-builder` publish is commented out for
   this fork. See [FORK.md](FORK.md).
+- **Fork git sync in Settings.** Check upstream for file overlap, pull from your
+  GitHub fork, and merge upstream when safe — for source checkouts only.
 
 - **Optional Clip updates.** App-wide Approve/Deny cards, private Discord
   updates and an Away from desk approval gate, with local-model wording and

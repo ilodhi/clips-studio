@@ -397,6 +397,185 @@ function AppearanceCard(): JSX.Element {
  *
  *  The banner only appears when there IS an update, so this is where somebody
  *  goes to ask, to see why a check failed, or to opt into early builds. */
+function ForkSyncCard(): JSX.Element {
+  const [status, setStatus] = useState<Awaited<ReturnType<typeof api.forkSyncStatus>> | null>(null)
+  const [preview, setPreview] = useState<Awaited<ReturnType<typeof api.forkCheckUpstream>> | null>(null)
+  const [busy, setBusy] = useState('')
+  const [msg, setMsg] = useState('')
+  const [err, setErr] = useState('')
+
+  const load = (): void => {
+    api
+      .forkSyncStatus()
+      .then(setStatus)
+      .catch(() => setStatus({ enabled: false, message: 'Could not reach the engine.' }))
+  }
+
+  useEffect(load, [])
+
+  if (!status) {
+    return (
+      <div className="card space-y-2" aria-label={t('Fork updates')}>
+        <h3 className="font-semibold">{t('Fork updates')}</h3>
+        <p className="text-sm text-muted">Loading…</p>
+      </div>
+    )
+  }
+
+  if (!status.enabled) {
+    return (
+      <div className="card space-y-2" aria-label={t('Fork updates')}>
+        <h3 className="font-semibold">{t('Fork updates')}</h3>
+        <p className="text-sm text-muted">
+          {status.message ??
+            'Git sync is only available in a source checkout (this folder is not a clone with remotes).'}
+        </p>
+        <p className="text-[11px] text-muted">
+          No uninstall needed: clone ilodhi/clips-studio, pull, and run <code className="text-xs">npm run dev</code>.
+          Packaged installs need your own release feed (see FORK.md).
+        </p>
+      </div>
+    )
+  }
+
+  const up = status.upstream
+  const org = status.origin
+
+  return (
+    <div className="card space-y-3" aria-label={t('Fork updates')}>
+      <h3 className="font-semibold">{t('Fork updates')}</h3>
+      <p className="text-sm text-muted">
+        Branch <span className="text-ink">{status.branch}</span>
+        {status.dirty ? ' · uncommitted changes (commit or stash before pull/merge)' : ''}
+      </p>
+      <ul className="text-xs text-muted space-y-1">
+        <li>
+          Your repo (origin):{' '}
+          {org?.behind ? `${org.behind} commit(s) behind` : 'up to date'}
+          {org?.ahead ? `, ${org.ahead} ahead (not pushed)` : ''}
+        </li>
+        <li>
+          Original (upstream):{' '}
+          {up?.behind ? `${up.behind} commit(s) behind ColinGPT9` : 'up to date with upstream'}
+        </li>
+      </ul>
+      {preview?.ok && (
+        <div className="text-xs space-y-1 border border-raised/60 rounded p-2">
+          <p className="text-ink">{preview.recommendation}</p>
+          {preview.fork_critical && preview.fork_critical.length > 0 && (
+            <p className="text-warn">
+              Fork files also changed upstream: {preview.fork_critical.join(', ')}
+            </p>
+          )}
+          {preview.overlap && preview.overlap.length > 0 && (
+            <p className="text-muted">
+              Overlap ({preview.overlap.length}):{' '}
+              {preview.overlap.length <= 8
+                ? preview.overlap.join(', ')
+                : `${preview.overlap.slice(0, 8).join(', ')}…`}
+            </p>
+          )}
+          {preview.safe_to_merge && <p className="text-accent">Looks safe to merge upstream.</p>}
+        </div>
+      )}
+      {err && <p className="text-xs text-error">{err}</p>}
+      {msg && <p className="text-xs text-accent">{msg}</p>}
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          className="btn-ghost !py-1.5"
+          disabled={!!busy}
+          onClick={() => {
+            setErr('')
+            setMsg('')
+            setBusy('check')
+            void api
+              .forkCheckUpstream()
+              .then((p) => {
+                setPreview(p)
+                if (!p.ok) setErr(p.error ?? 'Check failed')
+              })
+              .catch((e) => setErr(String(e)))
+              .finally(() => {
+                setBusy('')
+                load()
+              })
+          }}
+        >
+          {busy === 'check' ? 'Checking…' : t('Check upstream for conflicts')}
+        </button>
+        <button
+          type="button"
+          className="btn-accent !py-1.5"
+          disabled={!!busy || !!status.dirty}
+          onClick={() => {
+            setErr('')
+            setMsg('')
+            setBusy('pull')
+            void api
+              .forkPullOrigin()
+              .then((r) => {
+                if (r.ok) {
+                  setMsg(r.message ?? 'Pulled from your repo.')
+                  setPreview(null)
+                } else setErr(r.error ?? 'Pull failed')
+              })
+              .catch((e) => setErr(String(e)))
+              .finally(() => {
+                setBusy('')
+                load()
+              })
+          }}
+        >
+          {busy === 'pull' ? 'Pulling…' : t('Pull updates from my repo')}
+        </button>
+        <button
+          type="button"
+          className="btn !py-1.5"
+          disabled={
+            !!busy ||
+            !!status.dirty ||
+            !(preview?.ok && (preview.behind ?? 0) > 0) ||
+            (preview?.safe_to_merge === false)
+          }
+          title={
+            !preview?.ok
+              ? 'Check upstream first'
+              : preview.safe_to_merge === false
+                ? 'Overlapping fork files — resolve in git manually'
+                : undefined
+          }
+          onClick={() => {
+            setErr('')
+            setMsg('')
+            setBusy('merge')
+            void api
+              .forkMergeUpstream(false)
+              .then((r) => {
+                if (r.ok) {
+                  setMsg(r.message ?? 'Merged upstream.')
+                  setPreview(null)
+                } else setErr(r.error ?? r.hint ?? 'Merge failed')
+              })
+              .catch((e) => setErr(String(e)))
+              .finally(() => {
+                setBusy('')
+                load()
+              })
+          }}
+        >
+          {busy === 'merge' ? 'Merging…' : t('Merge upstream into this copy')}
+        </button>
+      </div>
+      <p className="text-[11px] text-muted">
+        Pull gets commits you pushed to GitHub. Check upstream previews overlap with your fork files
+        before merging ColinGPT9. Restart the app after pulls that change Python or the UI. This
+        replaces reinstalling when you run from a git clone.
+      </p>
+    </div>
+  )
+}
+
 function UpdateCard(): JSX.Element {
   const [state, setState] = useState<UpdateState | null>(null)
   const [channel, setChannel] = useState('stable')
@@ -874,6 +1053,8 @@ export default function Settings(): JSX.Element {
       <SetupCard />
 
       <UpdateCard />
+
+      <ForkSyncCard />
 
       <ConnectedAccountsCard />
 

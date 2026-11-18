@@ -334,6 +334,10 @@ class ModelIn(BaseModel):
     tag: str
 
 
+class ForkSyncMergeIn(BaseModel):
+    allow_overlap: bool = False  # merge upstream even when fork-critical files overlap
+
+
 class SettingsPatch(BaseModel):
     model: str | None = None
     channel: str | None = None
@@ -3292,6 +3296,30 @@ def create_app(config: dict, settings_path: Path) -> FastAPI:
         except ImportError:
             return []
         return sports.available()
+
+    @app.get("/fork/sync/status")
+    def fork_sync_status():
+        from core import fork_sync
+
+        return fork_sync.status()
+
+    @app.post("/fork/sync/check-upstream")
+    def fork_sync_check_upstream():
+        from core import fork_sync
+
+        return fork_sync.check_upstream()
+
+    @app.post("/fork/sync/pull-origin")
+    def fork_sync_pull_origin():
+        from core import fork_sync
+
+        return fork_sync.pull_origin()
+
+    @app.post("/fork/sync/merge-upstream")
+    def fork_sync_merge_upstream(body: ForkSyncMergeIn):
+        from core import fork_sync
+
+        return fork_sync.merge_upstream(allow_overlap=body.allow_overlap)
 
     @app.get("/settings")
     def get_settings():

@@ -613,6 +613,40 @@ export const api = {
       body: JSON.stringify({ path })
     }),
 
+  forkSyncStatus: () =>
+    request<{
+      enabled: boolean
+      reason?: string
+      message?: string
+      branch?: string
+      dirty?: boolean
+      upstream?: { ref: string; ahead: number | null; behind: number | null }
+      origin?: { ref: string; ahead: number | null; behind: number | null }
+    }>('/fork/sync/status'),
+
+  forkCheckUpstream: () =>
+    request<{
+      ok: boolean
+      error?: string
+      behind?: number
+      overlap?: string[]
+      fork_critical?: string[]
+      safe_to_merge?: boolean
+      recommendation?: string
+      merge_conflicts?: boolean | null
+    }>('/fork/sync/check-upstream', { method: 'POST' }),
+
+  forkPullOrigin: () =>
+    request<{ ok: boolean; error?: string; message?: string }>('/fork/sync/pull-origin', {
+      method: 'POST'
+    }),
+
+  forkMergeUpstream: (allowOverlap = false) =>
+    request<{ ok: boolean; error?: string; message?: string; hint?: string; preview?: unknown }>(
+      '/fork/sync/merge-upstream',
+      { method: 'POST', body: JSON.stringify({ allow_overlap: allowOverlap }) }
+    ),
+
   settings: () => request<Settings>('/settings'),
   // youtube_cookies_text: a cookies.txt's contents, kept by the engine in the data folder (#136)
   patchSettings: (patch: Partial<Settings> & { youtube_cookies_text?: string }) =>

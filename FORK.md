@@ -61,6 +61,20 @@ Conflicts often touch `video/outro.py`, `ui/src/renderer/src/pages/Settings.tsx`
 
 After merging upstream, run from source and clip a short test video before you rely on it.
 
+### In the app (source checkout only)
+
+**Settings → Fork updates**
+
+| Button | What it does |
+|--------|----------------|
+| **Check upstream for conflicts** | Fetches ColinGPT9 and lists files both you and upstream changed (especially fork-only files). |
+| **Pull updates from my repo** | `git pull` from `origin` — use after you pushed from another PC or merged on GitHub. |
+| **Merge upstream into this copy** | Enabled only when the check says it is safe (no overlap in fork-critical files). |
+
+You do **not** need to uninstall. Pull or merge in git, restart `npm run dev`, and continue.
+
+Packaged `.exe` installs do not include a git clone; use a **source checkout** for this UI, or your own installer feed later.
+
 ## Phase 2 — updates and installer safety
 
 This fork **does not** check ColinGPT9’s Hugging Face update feed. That prevents a
